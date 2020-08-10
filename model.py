@@ -18,6 +18,8 @@ class SIMI_Model(nn.Module):
         self.encode_length = encode_length
         self.n_layers = n_layers
 
+
+
         '''
         开始定义网络
         '''
@@ -38,7 +40,7 @@ class SIMI_Model(nn.Module):
 
 
 
-        self.output = nn.Linear(8*self.hid,2)
+        self.output = nn.Linear(6*self.hid,2)
 
         self.logsoftmax = nn.LogSoftmax(dim=1)
 
@@ -94,7 +96,8 @@ class SIMI_Model(nn.Module):
         # print(code_vec-commit_vec)
         # print('*********************************')
         mul_vec=code_vec.mul(commit_vec)
-        att_out = torch.cat((code_vec,commit_vec,code_vec-commit_vec,mul_vec),dim=-1)
+        #att_out = torch.cat((code_vec,commit_vec,code_vec-commit_vec,mul_vec),dim=-1)
+        att_out = torch.cat((code_vec, commit_vec, mul_vec), dim=-1)
 
 
         output = self.output(att_out)
