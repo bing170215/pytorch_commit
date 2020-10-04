@@ -220,6 +220,7 @@ def val_Similarity():
     print('val_auc:', np.mean(roc_auc_batch))
     print('********************************')
     return np.mean(loss_batch)
+
 loss=1000
 main_path = './models/'
 code_path = main_path + 'code_Model.pkl'

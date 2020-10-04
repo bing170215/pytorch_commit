@@ -51,6 +51,7 @@ class code_Model(nn.Module):
 
         return code_vec
 
+
 class commit_Model(nn.Module):
     def __init__(self, hid,word_embedding_dim ,embedding_vocabulary_num,encode_length,n_layers):
         super(commit_Model, self).__init__()
