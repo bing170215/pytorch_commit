@@ -28,8 +28,8 @@ EM_V = 24634                    # embedding vocabulary num #embedding词汇的�
 DE_V = 10130                    # decoder vocabulary num #解码部分词汇的数量
 SEED = 1                        # random seed #随机种子
 MED = 50                        # mark embedding dim #符号的嵌入维度
-WED = 150   #150                       # TODO: word embedding dim#单词的嵌入维度被设置为150
-HS = 128                       # TODO: hidden size 隐藏层的尺寸
+WED = 150   #150                # TODO: word embedding dim#单词的嵌入维度被设置为150
+HS = 256                        # TODO: hidden size 隐藏层的尺寸
 ATN = 64                        # attention num
 TR_DR = 0.1                     # drop rate for train
 TE_DR = 0.                      # drop rate for test
@@ -38,15 +38,26 @@ BM_S = 2                        # beam size
 VER = 12                        # data version
 NEG =1                          #负样本比正样本的比例       调整正负样本比例
 LR = 0.001
+LR_code = 0.001
+LR_commit=0.001
+LR_class = 0.001
 GRU_layer=2
 
 
-print('LR:',LR)
-torch.cuda.set_device(0)
+
+torch.cuda.set_device(4)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-simi_learner= SIMI_Model(hid=HS,mark_embedding_dim= MED,word_embedding_dim =WED,embedding_vocabulary_num = EM_V ,encode_length=E_L ,n_layers=GRU_layer).to(device)
+code_learner = code_Model(hid=HS,mark_embedding_dim= MED,word_embedding_dim =WED,embedding_vocabulary_num = EM_V ,encode_length=E_L ,n_layers=GRU_layer).to(device)
+commit_learner = commit_Model(hid=HS,word_embedding_dim =WED,embedding_vocabulary_num = EM_V ,encode_length=E_L ,n_layers=GRU_layer).to(device)
+class_learner = class_Model(hid=HS,).to(device)
+
+op_code=optim.Adam(code_learner.parameters(), lr=LR_code)
+op_commit=optim.Adam(commit_learner.parameters(), lr=LR_commit)
+op_class=optim.Adam(class_learner.parameters(), lr=LR_class)
+
+#simi_learner= SIMI_Model(hid=HS,mark_embedding_dim= MED,word_embedding_dim =WED,embedding_vocabulary_num = EM_V ,encode_length=E_L ,n_layers=GRU_layer).to(device)
 # optimizer
-op_simi = optim.Adam(simi_learner.parameters(), lr=LR)
+#op_simi = optim.Adam(simi_learner.parameters(), lr=LR)
 
 train_loader, val_loader, = load_data(TR_S,TR_E,VA_E,DE_V,NEG,VER,E_L,batch_size=TR_BS )
 loss_fn = torch.nn.NLLLoss()
@@ -76,8 +87,16 @@ def train_Similarity(e):
         y= data[4].long().to(device)
 
 
-        op_simi.zero_grad()
-        y_hat = simi_learner(mark,word,attr,msg)
+
+        #op_simi.zero_grad()
+        op_code.zero_grad()
+        op_commit.zero_grad()
+        op_class.zero_grad()
+
+        #y_hat = simi_learner(mark,word,attr,msg)
+        code_vec = code_learner(mark,word,attr)
+        commit_vec = commit_learner(msg)
+        y_hat = class_learner(code_vec,commit_vec)
 
         loss = loss_fn(y_hat, y.long())
         #loss = torch.mean(torch.abs(y_hat - y))
@@ -85,7 +104,11 @@ def train_Similarity(e):
 
         # backward and optimize
         loss.backward()
-        op_simi.step()
+        op_code.step()
+        op_commit.step()
+        op_class.step()
+
+        #op_simi.step()
         accu = cal_accu(y_hat, y.long())
         err,tp, tn, fp, fn, tpr, fpr, tnr, fnr, f1_score, roc_auc = evaluator(y_hat, y.long())
 
@@ -150,10 +173,11 @@ def val_Similarity():
         msg = data[3].long().to(device)
         y= data[4].long().to(device)
 
-
-        y_hat = simi_learner(mark,word,attr,msg)
-
+        code_vec = code_learner(mark, word, attr)
+        commit_vec = commit_learner(msg)
+        y_hat = class_learner(code_vec, commit_vec)
         loss = loss_fn(y_hat, y.long())
+
         #loss = torch.mean(torch.abs(y_hat - y.long()))
 
         # backward and optimize
@@ -195,13 +219,29 @@ def val_Similarity():
     print('val_f1:', np.mean(f1_score_batch))
     print('val_auc:', np.mean(roc_auc_batch))
     print('********************************')
-
+    return np.mean(loss_batch)
+loss=1000
+main_path = './models/'
+code_path = main_path + 'code_Model.pkl'
+commit_path = main_path + 'commit_Model.pkl'
+class_path = main_path + 'class_Model.pkl'
 for epoch in range(EP):
     print('current_epoch:'+str(epoch))
 
     train_Similarity(epoch)
     print('*****************进行验证********************')
-    val_Similarity()
+    val_loss=val_Similarity()
+    if val_loss!=np.nan and val_loss<loss:
+        print('best epoch:', epoch)
+        print('正在保存模型')
+        torch.save(code_learner, code_path)
+        torch.save(commit_learner, commit_path)
+        torch.save(class_learner, class_path)
+
+
+
+
+
 
 print('*******************************************')
 print('*******************************************')
