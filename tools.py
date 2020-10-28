@@ -26,25 +26,17 @@ def one_hot(value,classes):
     one_hots[value] = 1
     return one_hots
 
-def load_data(TR_S,TR_E,VA_E,DE_V,NEG,VER,E_L,batch_size=100):
-    dataset = Data4CopynetV3()
-    dataset.load_data(VER) #将data version传进去，从磁盘中加载数据
-    # 传进去三个参数，分别是 训练集索引的开始，验证集索引的结束，解码部分的词汇数量
-    #d_mark[83000,200], d_word[83000,200], d_attr[83000,200,5], mg[83000,21], genmask[10130     ], copymask[10130    ]
-    t1, t2, t3, t4, genmask, copymask = dataset.gen_tensor_negative2(TR_S, VA_E, DE_V,NEG,diff_len=E_L)
-    del dataset
-    t1, t2, t3, t4, y = trans_data( t1, t2, t3, t4,VA_E)
-    x1 = torch.from_numpy(t1)
-    x2 = torch.from_numpy(t2)
-    x3 = torch.from_numpy(t3)
-    x4 = torch.from_numpy(t4)
-    y = torch.from_numpy(y)
-    #
-    TR_E = TR_E*(NEG+1)
-    VA_E = VA_E*(NEG+1)
+def load_data(d_mark, d_word, d_attr, mg,TR_E,VA_E, batch_size=100):
+
+    #t1, t2, t3, t4, y = trans_data( t1, t2, t3, t4,VA_E)
+    x1 = torch.from_numpy(d_mark)
+    x2 = torch.from_numpy(d_word)
+    x3 = torch.from_numpy(d_attr)
+    x4 = torch.from_numpy(mg)
+
     # put into tensor dataset
-    train_data = TensorDataset(x1[:TR_E], x2[:TR_E],x3[:TR_E],x4[:TR_E],y[:TR_E])
-    val_data = TensorDataset(x1[TR_E:VA_E],x2[TR_E:VA_E],x3[TR_E:VA_E],x4[TR_E:VA_E],y[TR_E:VA_E])
+    train_data = TensorDataset(x1[:TR_E], x2[:TR_E],x3[:TR_E],x4[:TR_E])
+    val_data = TensorDataset(x1[TR_E:VA_E],x2[TR_E:VA_E],x3[TR_E:VA_E],x4[TR_E:VA_E])
 
 
     # put into dataloader
@@ -106,6 +98,11 @@ def evaluator(output,target):
             out[i]=0
         else:
             out[i] = 1
+    # for i in range(output.size(0)):
+    #     if output[i]<0.5:
+    #         out[i]=0
+    #     else:
+    #         out[i] = 1
     # err = torch.sum(torch.abs(output[:,:,1]-target))
     # err = err.item()/output.size(0)
 
@@ -113,7 +110,7 @@ def evaluator(output,target):
 
     err = err.item()/out.size(0)
 
-    fpr, tpr, threshold = roc_curve(out.numpy(), target.numpy())
+    fpr, tpr, threshold = roc_curve(target.numpy(), out.numpy())
     roc_auc = auc(fpr, tpr)
     tp, tn, fp, fn = calc_tptnfpfn_dyn(out,target)
     tp = tp/output.size(0)
@@ -140,7 +137,7 @@ def evaluator2(output,target):
 
     err = err.item()/out.size(0)
 
-    fpr, tpr, threshold = roc_curve(out.numpy(), target.numpy())
+    fpr, tpr, threshold = roc_curve(target.numpy(), out.numpy())
     roc_auc = auc(fpr, tpr)
     tp, tn, fp, fn = calc_tptnfpfn_dyn(out,target)
     tp = tp/output.size(0)

@@ -83,7 +83,9 @@ class class_Model(nn.Module):
 
         self.hid = hid
         self.output = nn.Linear(6*self.hid,2)
+        self.drop = nn.Dropout(p=0.2)
         self.logsoftmax = nn.LogSoftmax(dim=1)
+
 
 
     def forward(self,code_vec,commit_vec):
@@ -92,9 +94,9 @@ class class_Model(nn.Module):
         mul_vec=code_vec.mul(commit_vec)
         att_out = torch.cat((code_vec, commit_vec, mul_vec), dim=-1)
         output = self.output(att_out)
+        output = self.drop(output)
         output = self.logsoftmax(output)
-
-
+        #output=torch.sigmoid(output)
         return output
 
 
@@ -135,6 +137,7 @@ class SIMI_Model(nn.Module):
 
 
         self.output = nn.Linear(6*self.hid,2)
+        self.drop = nn.Dropout(p=0.2)
 
         self.logsoftmax = nn.LogSoftmax(dim=1)
 
@@ -194,6 +197,8 @@ class SIMI_Model(nn.Module):
 
 
         output = self.output(att_out)
+
+        output = self.drop(output)
 
         #print(output)
         output = self.logsoftmax(output)

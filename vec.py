@@ -2,12 +2,13 @@ import torch
 import json
 import numpy as np
 import re
-
+import datetime
+import time
 VER       = 12
-# DATA_SIZE = 90661
-DATA_SIZE = 256
+#DATA_SIZE = 90661
+DATA_SIZE = 8300
 B_SZ      = 64
-K         = 10
+K         = 20
 CODE_VEC_PATH = 'code_vec.txt'
 
 
@@ -118,12 +119,12 @@ def get_code_vec(code_learner):
     print('code_vec已保存至' + CODE_VEC_PATH)
     return
 
-def get_top_k(commit, k, code_vecs, commit_learner, class_learner):
+def get_top_k(dataset, commit, k, code_vecs, commit_learner, class_learner):
     ######################################
     # 读取数据
     ######################################
-    dataset = ReadData()
-    dataset.load_data(VER)
+    time_load_data = time.time()
+    print("time for load data: ", time.time() - time_load_data)
 
     ######################################
     # 计算向量
@@ -136,7 +137,7 @@ def get_top_k(commit, k, code_vecs, commit_learner, class_learner):
         ######################################
         code_vec = code_vecs[cur:min(cur+B_SZ, DATA_SIZE)]
         # print("code_vec: ", code_vec)
-
+        start1 = time.time()
         ######################################
         # 计算commit_vec
         ######################################
@@ -144,6 +145,7 @@ def get_top_k(commit, k, code_vecs, commit_learner, class_learner):
         mg = torch.from_numpy(mg).long().to(device)
         commit_vec = commit_learner(mg)
         # print("commit_vec: ", commit_vec)
+
 
         ######################################
         # 计算相似度
@@ -155,14 +157,20 @@ def get_top_k(commit, k, code_vecs, commit_learner, class_learner):
         pos = class_vec.detach().cpu().numpy().reshape((-1, 2))
         # print('pos: ', pos)
         pos = pos[:,1]
-        # print('pos: ', pos)
+        # pos = class_vec.detach().cpu().numpy()
+        # pos = pos[:,0]
+        print('pos: ', pos)
+        end1 = time.time()
+
+        print('time for this batch:' + str(round(end1 - start1, 2)))
+
 
         ######################################
         # 保存处理
         ######################################
         simi = np.concatenate((simi, pos), axis=0) if simi is not None else pos
-        print(simi.shape)
-        print(simi)
+        # print(simi.shape)
+        # print(simi)
 
         cur += B_SZ
         print('batch:', str(int(cur / B_SZ)) + '/' + str(int((DATA_SIZE + B_SZ - 1) / B_SZ)))
@@ -176,17 +184,42 @@ def get_top_k(commit, k, code_vecs, commit_learner, class_learner):
     print('pre: ', pre)
     return pre.numpy() # 最大的k个值的下标
 
+def split_msg(msgtext):
+    # to split msg in case build function are wrong
+    msgs = list()
+    pattern = re.compile(r'\w+')
+
+    msg = pattern.findall(msgtext)
+    msg = [j for j in msg if j != '' and not j.isspace()]
+    msgs.append(msg)
+    return msgs
+
 def get_codes(top_ids):
     ######################################
     # 读取数据
     ######################################
     dataset = ReadData()
     dataset.load_data(VER)
+    codes=np.array(dataset.difftoken)[top_ids]
 
-    return
+    return codes
+
+
+def get_commits(dataset, top_ids):
+    ######################################
+    # 读取数据
+    ######################################
+    commits = np.array(dataset.msgtext)[top_ids]
+
+    return commits
+
+
+
+
 
 
 if __name__ == '__main__':
+
 
     torch.cuda.set_device(0)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -195,30 +228,84 @@ if __name__ == '__main__':
     # 加载模型
     ######################################
     main_path = './models/'
+    #
+    code_path = main_path + 'code_Model_end_NEG5_lineDR.pkl'
+    code_learner = torch.load(code_path)
+    code_learner.eval()
+    print('code_learner加载成功')
+    get_code_vec(code_learner)                                        # 预训练仓库中的code_vec
 
-    # code_path = main_path + 'code_Model.pkl'
-    # code_learner = torch.load(code_path, map_location='cuda:0')
-    # print('code_learner加载成功')
-    # get_code_vec(code_learner)                                        # 预训练仓库中的code_vec
-
-    commit_path = main_path + 'commit_Model.pkl'
-    commit_learner = torch.load(commit_path, map_location='cuda:0')
+    commit_path = main_path + 'commit_Model_end_NEG5_lineDR.pkl'
+    commit_learner = torch.load(commit_path)
+    commit_learner.eval()
     print('commit_learner加载成功')
-    class_path = main_path + 'class_Model.pkl'
-    class_learner = torch.load(class_path, map_location='cuda:0')
+    class_path = main_path + 'class_Model_end_NEG5_lineDR.pkl'
+    class_learner = torch.load(class_path)
+    class_learner.eval()
     print('class_learner加载成功')
+
+
+    dataset = ReadData()
+    dataset.load_data(VER)
 
 
     print('加载预训练code_vec...')
     code_vecs = np.loadtxt(CODE_VEC_PATH)
     print('code_vec加载成功')
 
+    start = time.time()
+
+
     ######################################
     # 查找top-k
     ######################################
     # commit = input('commit: ').strip()                                # 输入查找关键词commit
-    commit = "Handle the getter and setter case"
-    commit = re.split(r'[ ,;.=!@#$%^&*()_+-=\'\"`~?:<>{}\[\]]', commit) # 分词
+    #commit = "Handle the getter and setter case"
+    #commit="Fix bug where class should delegate to setDetails method - not set the details directly."
+    commit="don't use SupportCode for generating setDisplayedMnemonicIndex()"
+    #commit = re.split(r'[ ,;.=!@#$%^&*()_+-=\'\"`~?:<>{}\[\]]', commit) # 分词
+    commit = split_msg(commit)
+    print(commit)
+    #
+    time_top_k = time.time()
+    print("start top k: ", time_top_k - start)
+    top_ids = get_top_k(dataset, commit[0], K, code_vecs, commit_learner, class_learner)       # 根据训练好的code_vec匹配相似度最高的k个代码段的id
+    print("time for top k: ", time.time() - time_top_k)
 
-    top_ids = get_top_k(commit, K, code_vecs, commit_learner, class_learner)       # 根据训练好的code_vec匹配相似度最高的k个代码段的id
-    # codes = get_codes(top_ids)
+    # codes = get_codes(list(top_ids))
+    time_commits = time.time()
+    commits = get_commits(dataset, list(top_ids))
+    print("time for commits: ", time.time() - time_commits)
+    # print(codes)
+    print(commits)
+    end = time.time()
+    print('time for this search:' + str(round(end - start, 2)))
+
+    num_of_choosen = 100
+    choosen_idx = np.random.choice(np.arange(7500,DATA_SIZE), size=num_of_choosen, replace=False)
+
+
+    #定义一个变量用来存储命中的个数
+    sum=0
+    # for idx,commit in enumerate(dataset.msgtext[:DATA_SIZE]):
+    #     commit = split_msg(commit)
+    #     top_ids = get_top_k(dataset, commit[0], K, code_vecs, commit_learner, class_learner)
+    #     if idx in top_ids:
+    #         sum = sum +1
+
+    for idx in choosen_idx:
+        commit = split_msg(dataset.msgtext[idx])
+        top_ids = get_top_k(dataset, commit[0], K, code_vecs, commit_learner, class_learner)
+        if idx in top_ids:
+            sum = sum +1
+
+    accu = float(sum/num_of_choosen)
+    print('topK='+str(K))
+    print('命中数='+str(sum))
+    print('准确率='+str(accu))
+
+
+
+
+
+

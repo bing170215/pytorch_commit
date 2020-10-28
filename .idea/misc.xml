@@ -3,5 +3,5 @@
   <component name="JavaScriptSettings">
     <option name="languageLevel" value="ES6" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.7 (deeplearning) (4)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.8.5 (sftp://guoyu@172.29.7.227:22/home/guoyu/miniconda3/envs/deeplearning/bin/python3.8)" project-jdk-type="Python SDK" />
 </project>

@@ -375,7 +375,7 @@ class Data4CopynetV3:
         return d_mark, d_word, d_attr, mg, genmask, copymask
 
 
-    def gen_tensor_negative2(self, start, end, vocab_size, neg_num,diff_len=200, attr_num=5, msg_len=20):
+    def gen_tensor_negative2(self, start, end, vocab_size, diff_len=200, attr_num=5, msg_len=20):
         #{'added': 'add', 'fixed': 'fix', 'removed': 'remove', 'adding': 'add', 'fixing': 'fix', 'removing': 'remove'}
         lemmatization = json.load(open('lemmatization.json'))
         length = end - start
@@ -419,44 +419,6 @@ class Data4CopynetV3:
 
         genmask[:10000] = 1
         copymask[:self.difftoken_start] = 1
-
-
-        num_list=[]
-        # print('*********************************8')
-        # for i in range(length):
-        #     num=np.sum(d_word[i]!=0)
-        #     num_list.append(num)
-        # print('小于150 的个数：'+str(np.sum(np.array(num_list)<=150)))
-        # print('平均值：'+str(np.mean(num_list)))
-        # print('方差：'+str(np.std(num_list)))
-        #
-        #
-        #
-        # print('*********************************8')
-
-
-
-
-
-
-
-        mg1 = mg
-        for neg in range(neg_num):
-
-            front = list(np.arange(length//2))
-            back = list(np.arange(length//2,length))
-            np.random.shuffle(front)
-            np.random.shuffle(back)
-            sf = back+front
-
-            current_d_mark = d_mark[sf]
-            current_d_word= d_word[sf]
-            current_d_attr = d_attr[sf]
-            d_mark = np.vstack((d_mark, current_d_mark))
-            d_word = np.vstack((d_word,current_d_word))
-            d_attr = np.vstack((d_attr,current_d_attr))
-
-            mg = np.vstack((mg,mg1))
 
 
 
