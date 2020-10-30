@@ -156,10 +156,10 @@ def get_top_k(dataset, commit, k, code_vecs, commit_learner, class_learner,devic
         commit_v = commit_vec
         class_vec = class_learner(code_v, commit_v)
         # print('class_vec: ', class_vec)
-        # pos = class_vec.detach().cpu().numpy().reshape((-1, 2))
-        # # print('pos: ', pos)
-        # pos = pos[:,1]
-        pos = class_vec.detach().cpu().numpy()
+        pos = class_vec.detach().cpu().numpy().reshape((-1, 2))
+        # print('pos: ', pos)
+        pos = pos[:,1]
+        #pos = class_vec.detach().cpu().numpy()
         #pos = pos[:,0]
         #print('pos: ', pos)
         end1 = time.time()
