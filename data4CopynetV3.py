@@ -374,6 +374,55 @@ class Data4CopynetV3:
         copymask[:self.difftoken_start] = 1
         return d_mark, d_word, d_attr, mg, genmask, copymask
 
+    # gen_tensor2：@return: d_mark, d_word, d_attr
+    # @d_mark: 直接从diffmarkV12.json中复制相应数量过来
+    # @d_word: 和@d_attr: 对应difftoken和diffattr中的内容，并使用variable和word2index转化为向量进行存储
+    def get_code_attr(self, start, end, diff_len=200, attr_num=5):
+        length = end - start
+        diff   = self.difftoken[start: end]  # 更新代码分词
+        diff_m = self.diffmark [start: end]  # 代码变更情况（2不变1删除3添加）
+        diff_a = self.diffatt  [start: end]  # 二次分词
+        va     = self.variable [start: end]  # 标识符和占位符对应情况
+
+        d_mark = np.zeros([length, diff_len])
+        d_word = np.zeros([length, diff_len])
+        d_attr = np.zeros([length, diff_len, attr_num])
+
+        for i, (j, k, m, n) in enumerate(zip(diff, diff_m, va, diff_a)):
+            # 对于第i个commit，diff[i], diff_m[i], diff_a[i]记录这次的代码变更情况
+            for idx, (dt, dm, da) in enumerate(zip(j, k, n)):  # diff, diff_m, diff_a
+                d_mark[i, idx] = dm             # 第i次commit的第idx个字段增删标记为dm
+                dt = m[dt] if dt in m else dt   # 将标识符替换为占位符，若不存在这样的占位符则保留不变
+                dn = self.word2index[dt] if dt in self.word2index else self.word2index['<unkd>']  # 替换为数字标记，若不是常用字则用<unkd>的标记
+                d_word[i, idx] = dn             # 第i次commit的第idx个字段内容为dn
+                for idx2, a in enumerate(da):   # 判断二次分词内容
+                    if idx2 >= attr_num:        # 只检索前attr_num个词
+                                                # 若词语不够attr_num，不会自动补足
+                        break
+                    # 第i次commit的第idx个字段的第idx2个分词为a
+                    d_attr[i, idx, idx2] = self.word2index[a] if a in self.word2index else self.word2index['<unkd>']
+        return d_mark, d_word, d_attr
+
+    def get_commit_vec(self, start, end, commit, msg_len=20):
+        # {"added": "add", "fixed": "fix", "removed": "remove", "adding": "add", "fixing": "fix", "removing": "remove"}
+        lemmatization = json.load(open('lemmatization.json'))
+        length = end - start
+        msg = commit  # commit信息
+        va = self.variable[start: end]  # 标识符和占位符对应情况
+        mg = np.zeros([length, msg_len + 1])
+        for i, m in enumerate(va):
+            # 对于第i个commit，msg[i]记录commit信息
+            mg[i, 0] = 1  # 固定为1
+            # 遍历commit信息
+            for idx, c in enumerate(msg):
+                c = m[c] if c in m else c.lower()  # 将标识符替换为占位符，若不存在则转换为小写
+                c = lemmatization[c] if c in lemmatization else c  # 特定文本替换
+                c0 = self.word2index[c] if c in self.word2index else self.word2index['<unkm>']  # 替换为数字标记，若不是常用字则用<unkm>的标记
+                # difftoken_start = 10130
+                c0 = self.word2index['<unkm>'] if c0 >= self.difftoken_start else c0  # 大于difftoken_start的替换为<unkm>的标记，否则不变
+                mg[i, idx + 1] = c0  # 记录这个字段的内容标记
+        return mg
+
 
     def gen_tensor_negative2(self, start, end, vocab_size, diff_len=200, attr_num=5, msg_len=20):
         #{'added': 'add', 'fixed': 'fix', 'removed': 'remove', 'adding': 'add', 'fixing': 'fix', 'removing': 'remove'}
@@ -388,6 +437,7 @@ class Data4CopynetV3:
         d_word = np.zeros([length, diff_len])
         d_attr = np.zeros([length, diff_len, attr_num]) #attr_num 语义序列的最大长度
         mg = np.zeros([length, msg_len + 1])
+
         #将对象中对应的元素打包成一个个元组
         for i, (j, k, l, m, n) in enumerate(zip(diff, diff_m, msg, va, diff_a)):
 

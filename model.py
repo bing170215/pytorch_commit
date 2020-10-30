@@ -88,15 +88,17 @@ class class_Model(nn.Module):
 
 
 
-    def forward(self,code_vec,commit_vec):
+    def forward(self,code_vec,commit_vec,temperature=0.1):
 
+        similiarity=F.cosine_similarity(code_vec,commit_vec)
 
-        mul_vec=code_vec.mul(commit_vec)
-        att_out = torch.cat((code_vec, commit_vec, mul_vec), dim=-1)
-        output = self.output(att_out)
-        output = self.drop(output)
-        output = self.logsoftmax(output)
-        #output=torch.sigmoid(output)
+        # mul_vec=code_vec.mul(commit_vec)
+        # att_out = torch.cat((code_vec, commit_vec, mul_vec), dim=-1)
+        # output = self.output(att_out)
+        # output = self.drop(output)
+        # output = self.logsoftmax(output)
+        output = similiarity/temperature
+        output=torch.sigmoid(output)
         return output
 
 

@@ -9,16 +9,17 @@ from sklearn.metrics import roc_curve, auc
 import sys
 from model import *
 from tools import *
+from vec import *
 
 
 #定义一些必要的参数
 TR_S = 0                        # train_start_index #训练集开始时的索引，
-TR_E = 7500                    # train_end_index #训练集结束时的索引 75000
+TR_E = 7500           # train_end_index #训练集结束时的索引 75000
 VA_S = 7500                   # valid_start_index #验证集开始时的索引75000
-VA_E = 8300                   # valid_end_index #验证集结束时的索引83000
-TE_S = 8300                    # test_start_index #测试集开始时的索引83000
-TE_E = 90661                    # test_end_index #测试集结束时的索引
-TR_BS = 64                   # train batch size #训练时的batch尺寸
+VA_E = 8300                 # valid_end_index #验证集结束时的索引83000
+#TE_S = 83000                   # test_start_index #测试集开始时的索引83000
+#TE_E = 90661                    # test_end_index #测试集结束时的索引
+TR_BS = 64                  # train batch size #训练时的batch尺寸
 EP = 500                        # trian epoch  #训练的epoch
 TE_BS = 1                       # test batch size #测试的epoch
 E_L = 200                       # encoder len #编码部分结构序列的最大长度
@@ -67,7 +68,7 @@ dataset.load_data(VER)  # 将data version传进去，从磁盘中加载数据
 d_mark, d_word, d_attr, mg, genmask, copymask = dataset.gen_tensor_negative2(TR_S, VA_E, DE_V, diff_len=E_L)
 
 train_loader, val_loader, = load_data(d_mark, d_word, d_attr, mg,TR_E,VA_E,batch_size=TR_BS )
-del dataset
+
 print('数据读取完成')
 
 loss_fn = torch.nn.NLLLoss()
@@ -128,9 +129,10 @@ def train_Similarity(e):
     code_learner.train()
     commit_learner.train()
     class_learner.train()
-
+    code_vecs=None
     for batch_idx ,data in enumerate(train_loader):
-        print('batch idx:', batch_idx)
+        if batch_idx % 100 == 0:
+            print('batch idx:', batch_idx)
         mark = data[0].long().to(device)
         word = data[1].long().to(device)
         attr =data[2].long().to(device)
@@ -144,7 +146,7 @@ def train_Similarity(e):
         # 负样本的标签
         neg_label = torch.zeros((mark.size(0))).long().to(device)
         #全1矩阵
-        ones = torch.ones((mark.size(0),1)).to(device)
+        ones = torch.ones((mark.size(0))).to(device)
 
         #op_simi.zero_grad()
         op_code.zero_grad()
@@ -154,10 +156,15 @@ def train_Similarity(e):
         #正例的正向传播
         #y_hat = simi_learner(mark,word,attr,msg)
         pos_code_vec = code_learner(mark,word,attr)
+        code_vecs = np.concatenate((code_vecs, pos_code_vec.detach().cpu().numpy()),
+                                   axis=0) if code_vecs is not None else pos_code_vec.detach().cpu().numpy()
+
         commit_vec = commit_learner(msg)
         pos_score = class_learner(pos_code_vec,commit_vec)
-        loss = loss_fn(pos_score, pos_label.long())
-        #loss = pos_score.log()
+        #loss = loss_fn(pos_score, pos_label.long())
+        # print(pos_score.size())
+        loss = pos_score.log()
+
         #负例的正向传播
         for i in range(NEG):
 
@@ -166,9 +173,11 @@ def train_Similarity(e):
             negative_attr = negative_attrs[:,i,:,:].long().to(device)
             neg_code_vec = code_learner(negative_mark,negative_word,negative_attr)
             neg_score = class_learner(neg_code_vec,commit_vec)
-            loss +=loss_fn(neg_score,neg_label.long())/NEG
-            #loss +=(ones-neg_score).log()/NEG
-        #loss = -loss.mean()
+            #loss +=loss_fn(neg_score,neg_label.long())/NEG
+            loss +=(ones-neg_score).log()/NEG
+
+        loss = -loss.mean()
+
         # backward and optimize
         loss.backward()
         op_code.step()
@@ -176,10 +185,11 @@ def train_Similarity(e):
         op_class.step()
 
         #op_simi.step()
-        accu = cal_accu(pos_score, pos_label.long())
-        err,tp, tn, fp, fn, tpr, fpr, tnr, fnr, f1_score, roc_auc = evaluator(pos_score, pos_label.long())
+        accu = cal_accu2(pos_score, pos_label.long())
+        err,tp, tn, fp, fn, tpr, fpr, tnr, fnr, f1_score, roc_auc = evaluator2(pos_score, pos_label.long())
+        if batch_idx %100==0:
 
-        print('loss:'+str(loss.item())+'acc:'+str(accu)+'auc:'+str(roc_auc))
+            print('loss:'+str(loss.item())+'acc:'+str(accu)+'auc:'+str(roc_auc))
 
         loss_batch.append(loss.item())
         accus_batch.append(accu)
@@ -214,6 +224,58 @@ def train_Similarity(e):
     print('f1:', np.mean(f1_score_batch))
     print('auc:', np.mean(roc_auc_batch))
     print('********************************')
+    print('计算top-k准确度！！！')
+    with torch.no_grad():
+        code_learner.eval()
+        commit_learner.eval()
+        class_learner.eval()
+
+        num_of_choosen = 100
+        choosen_idx = np.random.choice(TR_E, size=num_of_choosen, replace=False)
+
+        correct1 = 0
+        correct2 = 0
+        correct3 = 0
+
+
+        for idx in choosen_idx:
+            commit = split_msg(dataset.msgtext[idx])
+            # top5_ids = get_top_k(dataset, commit[0], 5, code_vecs, commit_learner, class_learner,device,DATA_SIZE=TR_E)
+            # top10_ids = get_top_k(dataset, commit[0], 10, code_vecs, commit_learner, class_learner,device,DATA_SIZE=TR_E)
+            top20_ids = get_top_k(dataset, commit[0], 20, code_vecs, commit_learner, class_learner,device,DATA_SIZE=TR_E)
+            top5_ids=top20_ids[:5]
+            top10_ids = top20_ids[:10]
+            if idx in top5_ids:
+                correct1 = correct1 +1
+
+            if idx in top10_ids:
+                correct2 = correct2 +1
+
+            if idx in top20_ids:
+                correct3 = correct3 +1
+
+        accu5 = float(correct1 / num_of_choosen)
+        accu10 = float(correct2 / num_of_choosen)
+        accu20 = float(correct3 / num_of_choosen)
+        print('******************************')
+        print('topK=' + str(5))
+        print('命中数=' + str(correct1))
+        print('准确率=' + str(accu5))
+        print('******************************')
+        print('topK=' + str(10))
+        print('命中数=' + str(correct2))
+        print('准确率=' + str(accu10))
+        print('******************************')
+        print('topK=' + str(20))
+        print('命中数=' + str(correct3))
+        print('准确率=' + str(accu20))
+
+
+
+
+
+
+
 
 
 def val_Similarity():
@@ -230,9 +292,10 @@ def val_Similarity():
     fnr_batch=[]
     f1_score_batch=[]
     roc_auc_batch=[]
-
+    code_vecs=None
     for batch_idx ,data in enumerate(val_loader):
-        print('batch idx:', batch_idx)
+        if batch_idx % 100 == 0:
+            print('batch idx:', batch_idx)
         data = data
         mark = data[0].long().to(device)
         word = data[1].long().to(device)
@@ -247,17 +310,19 @@ def val_Similarity():
         # 负样本的标签
         neg_label = torch.zeros((mark.size(0))).long().to(device)
         #全1矩阵
-        ones = torch.ones((mark.size(0),1)).to(device)
+        ones = torch.ones((mark.size(0))).to(device)
         code_learner.eval()
         commit_learner.eval()
         class_learner.eval()
         # 正例的正向传播
         # y_hat = simi_learner(mark,word,attr,msg)
         pos_code_vec = code_learner(mark, word, attr)
+        code_vecs = np.concatenate((code_vecs, pos_code_vec.detach().cpu().numpy()),
+                                   axis=0) if code_vecs is not None else pos_code_vec.detach().cpu().numpy()
         commit_vec = commit_learner(msg)
         pos_score = class_learner(pos_code_vec, commit_vec)
-        loss = loss_fn(pos_score, pos_label.long())
-        #loss = pos_score.log()
+        #loss = loss_fn(pos_score, pos_label.long())
+        loss = pos_score.log()
 
         # 负例的正向传播
         for i in range(NEG):
@@ -266,16 +331,17 @@ def val_Similarity():
             negative_attr = negative_attrs[:,i,:,:].long().to(device)
             neg_code_vec = code_learner(negative_mark, negative_word, negative_attr)
             neg_score = class_learner(neg_code_vec, commit_vec)
-            loss += loss_fn(neg_score, neg_label.long())/NEG
-            #loss +=(ones-neg_score).log()/NEG
+            #loss += loss_fn(neg_score, neg_label.long())/NEG
+            loss +=(ones-neg_score).log()/NEG
 
-        #loss=-loss.mean()
+        loss=-loss.mean()
 
         # backward and optimize
-        accu = cal_accu(pos_score, pos_label.long())
-        err,tp, tn, fp, fn, tpr, fpr, tnr, fnr, f1_score, roc_auc = evaluator(pos_score, pos_label.long())
+        accu = cal_accu2(pos_score, pos_label.long())
+        err,tp, tn, fp, fn, tpr, fpr, tnr, fnr, f1_score, roc_auc = evaluator2(pos_score, pos_label.long())
+        if batch_idx%100==0:
 
-        print('val_loss:'+str(loss.item())+'val_acc:'+str(accu)+'val_auc:'+str(roc_auc))
+            print('val_loss:'+str(loss.item())+'val_acc:'+str(accu)+'val_auc:'+str(roc_auc))
 
         loss_batch.append(loss.item())
         accus_batch.append(accu)
@@ -309,13 +375,55 @@ def val_Similarity():
     print('val_f1:', np.mean(f1_score_batch))
     print('val_auc:', np.mean(roc_auc_batch))
     print('********************************')
+
+    print('计算top-k准确度！！！')
+    with torch.no_grad():
+        num_of_choosen = 100
+        choosen_idx = np.random.choice(np.arange(TR_E,VA_E), size=num_of_choosen, replace=False)
+
+        correct1 = 0
+        correct2 = 0
+        correct3 = 0
+
+        for idx in choosen_idx:
+            commit = split_msg(dataset.msgtext[idx])
+            # top5_ids = get_top_k(dataset, commit[0], 5, code_vecs, commit_learner, class_learner,device, cur=TR_E,DATA_SIZE=VA_E)
+            # top10_ids = get_top_k(dataset, commit[0], 10, code_vecs, commit_learner, class_learner,device, cur=TR_E, DATA_SIZE=VA_E)
+            top20_ids = get_top_k(dataset, commit[0], 20, code_vecs, commit_learner, class_learner, device,cur=TR_E, DATA_SIZE=VA_E)
+            top5_ids=top20_ids[:5]
+            top10_ids = top20_ids[:10]
+            if idx in top5_ids:
+                correct1 = correct1 + 1
+
+            if idx in top10_ids:
+                correct2 = correct2 + 1
+
+            if idx in top20_ids:
+                correct3 = correct3 + 1
+
+        accu5 = float(correct1 / num_of_choosen)
+        accu10 = float(correct2 / num_of_choosen)
+        accu20 = float(correct3 / num_of_choosen)
+        print('******************************')
+        print('topK=' + str(5))
+        print('命中数=' + str(correct1))
+        print('准确率=' + str(accu5))
+        print('******************************')
+        print('topK=' + str(10))
+        print('命中数=' + str(correct2))
+        print('准确率=' + str(accu10))
+        print('******************************')
+        print('topK=' + str(20))
+        print('命中数=' + str(correct3))
+        print('准确率=' + str(accu20))
+
     return np.mean(loss_batch)
 
 loss=1000
 main_path = './models/'
-code_path = main_path + 'code_Model_NEG'+str(NEG)+'_lineDR.pkl'
-commit_path = main_path + 'commit_Model_NEG'+str(NEG)+'_lineDR.pkl'
-class_path = main_path + 'class_Model_NEG'+str(NEG)+'_lineDR.pkl'
+code_path = main_path + 'code_Model_NEG'+str(NEG)+'_cossimi_small.pkl'
+commit_path = main_path + 'commit_Model_NEG'+str(NEG)+'_cossimi_small.pkl'
+class_path = main_path + 'class_Model_NEG'+str(NEG)+'_cossimi_small.pkl'
 for epoch in range(EP):
     print('current_epoch:'+str(epoch))
 
@@ -331,9 +439,9 @@ for epoch in range(EP):
         torch.save(class_learner, class_path)
 
 
-    torch.save(code_learner, main_path + 'code_Model_end_NEG'+str(NEG)+'_lineDR.pkl')
-    torch.save(commit_learner, main_path + 'commit_Model_end_NEG'+str(NEG)+'_lineDR.pkl')
-    torch.save(class_learner, main_path + 'class_Model_end_NEG'+str(NEG)+'_lineDR.pkl')
+    torch.save(code_learner, main_path + 'code_Model_end_NEG'+str(NEG)+'_cossimi_small.pkl')
+    torch.save(commit_learner, main_path + 'commit_Model_end_NEG'+str(NEG)+'_cossimi_small.pkl')
+    torch.save(class_learner, main_path + 'class_Model_end_NEG'+str(NEG)+'_cossimi_small.pkl')
 
 
 
