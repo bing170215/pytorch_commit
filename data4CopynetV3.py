@@ -423,6 +423,30 @@ class Data4CopynetV3:
                 mg[i, idx + 1] = c0  # 记录这个字段的内容标记
         return mg
 
+    def get_native_mg(self,commit_msgs,choosen_idx,msg_len=20):
+        lemmatization = json.load(open('lemmatization.json'))
+        length = len(choosen_idx[0])
+
+
+        mg = np.zeros([commit_msgs.shape[0],length, msg_len + 1])
+        for it in range(len(mg)):
+            msg = commit_msgs[it] #commit信息
+
+            va = np.array(self.variable)[choosen_idx[it]]# 标识符和占位符对应情况
+            for i, m in enumerate(va):
+                # 对于第i个commit，msg[i]记录commit信息
+                mg[it,i, 0] = 1  # 固定为1
+                # 遍历commit信息
+                for idx, c in enumerate(list(msg)):
+
+                    c = m[c] if c in m else c.lower()  # 将标识符替换为占位符，若不存在则转换为小写
+                    c = lemmatization[c] if c in lemmatization else c  # 特定文本替换
+                    c0 = self.word2index[c] if c in self.word2index else self.word2index['<unkm>']  # 替换为数字标记，若不是常用字则用<unkm>的标记
+                    # difftoken_start = 10130
+                    c0 = self.word2index['<unkm>'] if c0 >= self.difftoken_start else c0  # 大于difftoken_start的替换为<unkm>的标记，否则不变
+                    mg[it,i, idx + 1] = c0  # 记录这个字段的内容标记
+        return mg
+
 
     def gen_tensor_negative2(self, start, end, vocab_size, diff_len=200, attr_num=5, msg_len=20):
         #{'added': 'add', 'fixed': 'fix', 'removed': 'remove', 'adding': 'add', 'fixing': 'fix', 'removing': 'remove'}
