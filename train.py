@@ -16,7 +16,7 @@ writer = SummaryWriter()
 #定义一些必要的参数
 TR_S = 0                        # train_start_index #训练集开始时的索引，
 TR_E = 75000                   # train_end_index #训练集结束时的索引 75000
-VA_S = 75000                  # valid_start_index #验证集开始时的索引75000
+VA_S = 75000                 # valid_start_index #验证集开始时的索引75000
 VA_E = 83000                 # valid_end_index #验证集结束时的索引83000
 # TE_S = 83000                   # test_start_index #测试集开始时的索引83000
 # TE_E = 90661                    # test_end_index #测试集结束时的索引
@@ -31,7 +31,7 @@ DE_V = 10130                    # decoder vocabulary num #解码部分词汇的�
 SEED = 1                        # random seed #随机种子
 MED = 50                        # mark embedding dim #符号的嵌入维度
 WED = 150   #150                # TODO: word embedding dim#单词的嵌入维度被设置为150
-HS = 256                     # TODO: hidden size 隐藏层的尺寸
+HS = 256                        # TODO: hidden size 隐藏层的尺寸
 ATN = 64                        # attention num
 TR_DR = 0.1                     # drop rate for train
 TE_DR = 0.                      # drop rate for test
@@ -47,7 +47,7 @@ GRU_layer=2
 
 
 
-torch.cuda.set_device(5)
+torch.cuda.set_device(0)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 code_learner = code_Model(hid=HS,mark_embedding_dim= MED,word_embedding_dim =WED,embedding_vocabulary_num = EM_V ,encode_length=E_L ,n_layers=GRU_layer).to(device)
 commit_learner = commit_Model(hid=HS,word_embedding_dim =WED,embedding_vocabulary_num = EM_V ,encode_length=E_L ,n_layers=GRU_layer).to(device)
@@ -120,9 +120,6 @@ def sample_negtivate(pos_target,flag=False):
     negative_commit = torch.from_numpy(negative_commit)
 
     return negative_marks,negative_words,negative_attrs,negative_commit
-
-
-
 
 
 
@@ -453,9 +450,9 @@ def val_Similarity(epoch):
 
 loss=1000
 main_path = './models/'
-code_path = main_path + 'code_Model_NEG'+str(NEG)+'_nlloss_neg_hs512.pkl'
-commit_path = main_path + 'commit_Model_NEG'+str(NEG)+'_nlloss_neg_hs512.pkl'
-class_path = main_path + 'class_Model_NEG'+str(NEG)+'_nlloss_neg_hs512.pkl'
+code_path = main_path + 'code_Model_NEG'+str(NEG)+'_nlloss_neg_diff.pkl'
+commit_path = main_path + 'commit_Model_NEG'+str(NEG)+'_nlloss_neg_diff.pkl'
+class_path = main_path + 'class_Model_NEG'+str(NEG)+'_nlloss_neg_diff.pkl'
 for epoch in range(EP):
     print('current_epoch:'+str(epoch))
 
@@ -471,9 +468,9 @@ for epoch in range(EP):
         torch.save(class_learner, class_path)
 
 
-    torch.save(code_learner, main_path + 'code_Model_end_NEG'+str(NEG)+'_nlloss_neg_hs512.pkl')
-    torch.save(commit_learner, main_path + 'commit_Model_end_NEG'+str(NEG)+'_nlloss_neg_hs512.pkl')
-    torch.save(class_learner, main_path + 'class_Model_end_NEG'+str(NEG)+'_nlloss_neg_hs512.pkl')
+    torch.save(code_learner, main_path + 'code_Model_end_NEG'+str(NEG)+'_nlloss_neg_diff.pkl')
+    torch.save(commit_learner, main_path + 'commit_Model_end_NEG'+str(NEG)+'_nlloss_neg_diff.pkl')
+    torch.save(class_learner, main_path + 'class_Model_end_NEG'+str(NEG)+'_nlloss_neg_diff.pkl')
 
 
 

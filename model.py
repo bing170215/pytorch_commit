@@ -102,6 +102,7 @@ class class_Model(nn.Module):
 
     def forward(self,code_vec,commit_vec,temperature=0.1):
 
+
         mul_vec=code_vec.mul(commit_vec)
         att_out = torch.cat((code_vec, commit_vec, mul_vec), dim=-1)
         output = self.output(att_out)

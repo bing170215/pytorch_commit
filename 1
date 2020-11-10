@@ -1,0 +1,21 @@
+"diff --git
+a/codec-http/src/main/java/io/netty/handler/codec/http/HttpRequestEncoder.java b/codec-http/src/main/java/io/netty/handler/codec/http/HttpRequestEncoder.java\nindex
+e4ecae8..c7aa051 100644\n
+--- a/codec-http/src/main/java/io/netty/handler/codec/http/HttpRequestEncoder.java\n
++++ b/codec-http/src/main/java/io/netty/handler/codec/http/HttpRequestEncoder.java\n
+@@ -35,7 +35,7 @@
+public class HttpRequestEncoder extends HttpObjectEncoder<HttpRequest> {\n \n
+@Override\n
+protected void encodeInitialLine(ByteBuf buf, HttpRequest request) throws Exception {\n
+-buf.writeBytes(request.getMethod().toString().getBytes(CharsetUtil.US_ASCII));\n+
++encodeAscii(request.getMethod().toString(), buf);\n
+buf.writeByte(SP);\n \n
+// Add / as absolute path if no is present.\n
+@@ -51,7 +51,7 @@
+public class HttpRequestEncoder extends HttpObjectEncoder<HttpRequest> {\n
+buf.writeBytes(uri.getBytes(CharsetUtil.UTF_8));\n \n
+buf.writeByte(SP);\n
+-buf.writeBytes(request.getProtocolVersion().toString().getBytes(CharsetUtil.US_ASCII));\n
++encodeAscii(request.getProtocolVersion().toString(), buf);\n
+buf.writeBytes(CRLF);\n     }\n
+}\n"
