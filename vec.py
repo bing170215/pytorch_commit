@@ -156,11 +156,11 @@ def get_top_k(dataset, commit, k, code_vecs, commit_learner, class_learner,devic
         commit_v = commit_vec
         class_vec = class_learner(code_v, commit_v)
         # print('class_vec: ', class_vec)
-        # pos = class_vec.detach().cpu().numpy().reshape((-1, 2))
-        # # print('pos: ', pos)
-        # pos = pos[:,1]
-        pos = class_vec.detach().cpu().numpy()
-        #pos = pos[:,0]
+        pos = class_vec.detach().cpu().numpy().reshape((-1, 2))
+        # print('pos: ', pos)
+        pos = pos[:,1]
+        #pos = class_vec.detach().cpu().numpy()
+
         #print('pos: ', pos)
         end1 = time.time()
 
@@ -231,17 +231,17 @@ if __name__ == '__main__':
     ######################################
     main_path = './models/'
     #
-    # code_path = main_path + 'code_Model_NEG5_cossimi.pkl'
-    # code_learner = torch.load(code_path)
-    # code_learner.eval()
-    # print('code_learner加载成功')
-    # get_code_vec(code_learner)                                        # 预训练仓库中的code_vec
+    code_path = main_path + 'code_Model_end_NEG5.pkl'
+    code_learner = torch.load(code_path)
+    code_learner.eval()
+    print('code_learner加载成功')
+    get_code_vec(code_learner)                                        # 预训练仓库中的code_vec
 
-    commit_path = main_path + 'commit_Model_NEG5_cossimi.pkl'
+    commit_path = main_path + 'commit_Model_end_NEG5.pkl'
     commit_learner = torch.load(commit_path)
     commit_learner.eval()
     print('commit_learner加载成功')
-    class_path = main_path + 'class_Model_NEG5_cossimi.pkl'
+    class_path = main_path + 'class_Model_end_NEG5.pkl'
     class_learner = torch.load(class_path)
     class_learner.eval()
     print('class_learner加载成功')
@@ -284,28 +284,46 @@ if __name__ == '__main__':
     end = time.time()
     print('time for this search:' + str(round(end - start, 2)))
 
+
+
     num_of_choosen = 100
-    choosen_idx = np.random.choice(7500, size=num_of_choosen, replace=False)
+    choosen_idx = np.random.choice(DATA_SIZE, size=num_of_choosen, replace=False)
 
+    correct1 = 0
+    correct2 = 0
+    correct3 = 0
 
-    #定义一个变量用来存储命中的个数
-    sum=0
-    # for idx,commit in enumerate(dataset.msgtext[:DATA_SIZE]):
-    #     commit = split_msg(commit)
-    #     top_ids = get_top_k(dataset, commit[0], K, code_vecs, commit_learner, class_learner)
-    #     if idx in top_ids:
-    #         sum = sum +1
 
     for idx in choosen_idx:
         commit = split_msg(dataset.msgtext[idx])
-        top_ids = get_top_k(dataset, commit[0], K, code_vecs, commit_learner, class_learner)
-        if idx in top_ids:
-            sum = sum +1
+        top20_ids = get_top_k(dataset, commit[0], K, code_vecs, commit_learner, class_learner,device,DATA_SIZE=DATA_SIZE)
+        top5_ids=top20_ids[:5]
+        top10_ids = top20_ids[:10]
+        if idx in top5_ids:
+            correct1 = correct1 +1
 
-    accu = float(sum/num_of_choosen)
-    print('topK='+str(K))
-    print('命中数='+str(sum))
-    print('准确率='+str(accu))
+        if idx in top10_ids:
+            correct2 = correct2 +1
+
+        if idx in top20_ids:
+            correct3 = correct3 +1
+
+    accu5 = float(correct1 / num_of_choosen)
+    accu10 = float(correct2 / num_of_choosen)
+    accu20 = float(correct3 / num_of_choosen)
+    print('******************************')
+    print('topK=' + str(5))
+    print('命中数=' + str(correct1))
+    print('准确率=' + str(accu5))
+    print('******************************')
+    print('topK=' + str(10))
+    print('命中数=' + str(correct2))
+    print('准确率=' + str(accu10))
+    print('******************************')
+    print('topK=' + str(20))
+    print('命中数=' + str(correct3))
+    print('准确率=' + str(accu20))
+
 
 
 

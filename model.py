@@ -30,6 +30,10 @@ class code_Model(nn.Module):
         #定义语义序列经过的三层双向GRU
         self.Semantics_GRU = nn.GRU(self.word_embedding_dim,self.hid,num_layers=self.n_layers,bidirectional=False,batch_first=True,dropout=0.2)
 
+        self.output = nn.Linear(2 * self.hid, self.embedding_vocabulary_num)
+
+        self.drop = nn.Dropout(p=0.2)
+
     def forward(self, mark ,word,attr):
 
         m_embed_en= self.mark_embed_layer(mark)
@@ -49,6 +53,10 @@ class code_Model(nn.Module):
         combine_h = torch.cat((code_structure_h,semantics_h),dim=-1)  # 合并后的masked_rnn_h3就是 h'  (？,200,64)
         code_vec = combine_h[:,-1,:]
 
+        # code_vec = self.output(code_vec)
+        #
+        # code_vec = self.drop(code_vec)
+
         return code_vec
 
 
@@ -66,14 +74,18 @@ class commit_Model(nn.Module):
         #定义commit经过的三层单向GRU
         self.commit_GRU = nn.GRU(self.word_embedding_dim,2*self.hid,num_layers=self.n_layers,batch_first=True,dropout=0.2)
 
+        self.output = nn.Linear(2*self.hid,self.embedding_vocabulary_num)
 
-
+        self.drop = nn.Dropout(p=0.2)
 
     def forward(self, msg):
         #经过commit的三层单向GRU
         embed_de = self.word_embedding_layer(msg)
         commit_h,_= self.commit_GRU(embed_de)
         commit_vec=commit_h[:,-1,:]
+        # commit_vec = self.output(commit_vec)
+        # commit_vec = self.drop(commit_vec)
+
         return commit_vec
 
 class class_Model(nn.Module):
@@ -90,15 +102,15 @@ class class_Model(nn.Module):
 
     def forward(self,code_vec,commit_vec,temperature=0.1):
 
-        similiarity=F.cosine_similarity(code_vec,commit_vec)
+        mul_vec=code_vec.mul(commit_vec)
+        att_out = torch.cat((code_vec, commit_vec, mul_vec), dim=-1)
+        output = self.output(att_out)
+        output = self.drop(output)
+        output = self.logsoftmax(output)
 
-        # mul_vec=code_vec.mul(commit_vec)
-        # att_out = torch.cat((code_vec, commit_vec, mul_vec), dim=-1)
-        # output = self.output(att_out)
-        # output = self.drop(output)
-        # output = self.logsoftmax(output)
-        output = similiarity/temperature
-        output=torch.sigmoid(output)
+        #similiarity=F.cosine_similarity(code_vec,commit_vec)
+        # output = similiarity/temperature
+        # output=torch.sigmoid(output)
         return output
 
 
